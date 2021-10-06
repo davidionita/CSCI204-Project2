@@ -1,3 +1,8 @@
+# David Ionita & Ethan Platock
+# Project 2 Phase 1
+# 10/04/2021
+# Professor Dancy
+
 """ Game to play 'Lost Rovers'. This is the file you edit.
 To make more ppm files, open a gif or jpg in xv and save as ppm raw.
 Put the three ADTs in their own files.
@@ -11,10 +16,11 @@ class Game:
         # put other instance variables here
         self.gui = GameBoard("Lost Rover", self, Game.SIZE)
 
-        self.rover = Rover(Point(random.randint(0, Game.SIZE), random.randint(0, Game.SIZE)))
+        self.rover = Rover(Point(randint(0, Game.SIZE-1), randint(0, Game.SIZE-1)))
 
         self.room = Room(Game.SIZE)
         
+        # Hardcoded ship components
         self.room.set_location(Point(6,6), ShipComponent(Point(6,6), "cabinbroken.ppm", "cabin", True))     # broken cabin @ 6,6
         self.room.set_location(Point(7,6), ShipComponent(Point(7,6), "enginebroken.ppm", "engine", True))   # broken engine @ 7,6
         self.room.set_location(Point(6,7), ShipComponent(Point(6,7), "cabin.ppm", "cabin", False))          # fixed cabin @ 6,7
@@ -22,34 +28,38 @@ class Game:
         self.room.set_location(Point(8,7), ShipComponent(Point(8,7), "exhaustbroken.ppm", "exhaust", True)) # broken exhaust @ 8,7
         self.room.set_location(Point(8,8), ShipComponent(Point(8,8), "cabinbroken.ppm", "cabin", True))     # broken cabin @ 8,8
          
-        numPortals = random.randint(2, 7)
+        # Random number of portals from 2 to 6
+        numPortals = randint(2, 6)
         for i in range(numPortals):
-          position = Point(random.randint(0, Game.SIZE),random.randint(0, Game.SIZE))
-          while self.room.get_location(position) is None:
-            position = Point(random.randint(0, Game.SIZE),random.randint(0, Game.SIZE))
+          # Choose random location for portal without a current item on it
+          position = Point(randint(0, Game.SIZE-1), randint(0, Game.SIZE-1))
+          while self.room.get_location(position) is not None:
+            position = Point(randint(0, Game.SIZE-1), randint(0, Game.SIZE-1)) 
           self.room.set_location(position, Portal(position))
 
+        # Static list of parts for easy indexing w/ randint
         PARTS = ["bagel", "cake", "lettuce", "gear", "screw"]
+        # Helper list to keep track of distinct parts (need at least 4 different parts)
         distinctParts = [None, None, None, None]
-        numParts = random.randint(7, 13)
+        # Random number of parts from 7 to 12
+        numParts = randint(7, 12)
         for i in range(numParts):
-          position = Point(random.randint(0, Game.SIZE),random.randint(0, Game.SIZE))
-          while self.room.get_location(position) is None:
-            position = Point(random.randint(0, Game.SIZE),random.randint(0, Game.SIZE))
-
-          # randint for each tpye of part 
+          # Choose random location for part without a current item on it
+          position = Point(randint(0, Game.SIZE-1), randint(0, Game.SIZE-1))
+          while self.room.get_location(position) is not None:
+            position = Point(randint(0, Game.SIZE-1), randint(0, Game.SIZE-1))
           
-        
-          kindNum = randint(0, 5)
-          if i<4: # for the first 4 parts make sure they're distinct THEN randomize type for rest of them
-            kindNum = randint(0, 5)
+          # Random part (0-4 as indexed in the static list)
+          kindNum = randint(0, 4)
+          if i<4: # For the first 4 parts, make sure they're distinct; THEN randomize the kind/type for rest of them
+            kindNum = randint(0, 4)
+            # Make sure randomly chosen part is distinct
             while kindNum in distinctParts:
-              kindNum = randint(0, 5)
+              kindNum = randint(0, 4)
             distinctParts[i] = kindNum
-
             self.room.set_location(position, Part(position, PARTS[kindNum]+".ppm", PARTS[kindNum]))
           else:
-            kindNum = randint(0, 5)
+            kindNum = randint(0, 4)
             self.room.set_location(position, Part(position, PARTS[kindNum]+".ppm", PARTS[kindNum]))
 
 
@@ -73,10 +83,11 @@ class Game:
 		part, ship component, or portal at the given
 		coordinates. ('engine.ppm' or 'cake.ppm' or
 		'portal.ppm', etc) """
-        item = self.room.set_location(point)
+        item = self.room.get_location(point)
+        
         if item is None:
             return None
-        elif not isinstance(item, Rover):
+        else:
             return item.image
 
     def go_up(self):
@@ -164,20 +175,17 @@ class StaticItem:
   def __init__(self, position, image):
     self.position = position
     self.image = image
-    # static items cannot overlap
 
-class Portal(StaticObject):
-  def __init__(self, position, image="portal.pmm"):
+class Portal(StaticItem):
+  def __init__(self, position, image="portal.ppm"):
     super().__init__(position, image)
-    # at least 2 portals, random locations and #>2
 
-class Part(StaticObject):
+class Part(StaticItem):
   def __init__(self, position, image, kind):
     super().__init__(position, image)
     self.kind = kind
-    # bagel, cake, gear, lettuce, screw -- at least 4 kinds, at least 7 - 12 total, random locations, type, and #>
 
-class ShipComponent(StaticObject):
+class ShipComponent(StaticItem):
   def __init__(self, position, image, kind, broken):
     super().__init__(position, image)
     self.kind = kind
@@ -187,9 +195,9 @@ class Room:
   def __init__(self, size):
     self.size = size
     
-    # use list comprehension to make a 2D array full of None
+    # Use list comprehension to make a 2D array full of None
     self.board = [[None for x in range(size)] for x in range(size)]
-    # board can be indexed by [Point.y][Point.x] because it is [row, column]
+    # Board can be indexed by [Point.y][Point.x] because it is [row, column]
 
   def get_location(self, position):
     return self.board[position.y][position.x]
