@@ -9,6 +9,7 @@ Put the three ADTs in their own files.
 """
 from gameboard import *
 from random import *
+from InventoryLL import *
 
 class Game:
     SIZE = 15 # rooms are 15x15
@@ -21,6 +22,8 @@ class Game:
         self.rooms = [Room(Game.SIZE, True)] # acts as a stack to push(append), pop, and peak([-1]) rooms
         
         self.current_room = self.rooms[-1] # current_room tracks the room the rover is in and displayed on the screen
+
+        self.inventory = InventoryLL()
 
     def start_game(self):
         self.gui.run()
@@ -131,14 +134,18 @@ class Game:
 		2 screws
 		1 rug
 	  """
-        pass # Your code goes here
+        return str(self.inventory)
 
     def pick_up(self):
         """ Called by GUI when button clicked.
 		If rover is standing on a part (not a portal
 		or ship component), pick it up and add it
 		to the inventory. """
-        pass # Your code goes here
+        roverPos = self.rover.position
+        item = self.current_room.get_location(roverPos)
+        if isinstance(item, Part): # checks if item at rover position is a Part (can be picked up)
+            self.inventory.add(str(item)) # adds to inventory
+            self.current_room.set_location(roverPos, None) # removes from board/GUI
 
     def get_current_task(self):
         """ Called by GUI when task updates.
@@ -168,6 +175,9 @@ class StaticItem:
   def __init__(self, position, image):
     self.position = position
     self.image = image
+
+  def __str__(self):
+    return self.image.split(".")[0].capitalize() # gets section of image filename without ".ppm" then capitalizes
 
 class Portal(StaticItem):
   def __init__(self, position, image, init_room):
