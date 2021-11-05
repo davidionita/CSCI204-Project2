@@ -1,6 +1,6 @@
 # David Ionita & Ethan Platock
-# Project 2 Phase 2
-# 10/08/2021
+# Project 2 Phase 5
+# 11/03/2021
 # Professor Dancy
 
 """ Game to play 'Lost Rovers'. This is the file you edit.
@@ -10,6 +10,8 @@ Put the three ADTs in their own files.
 from gameboard import *
 from random import *
 from InventoryLL import *
+from PortalStack import *
+from TasksCircularQ import *
 
 class Game:
     SIZE = 15 # rooms are 15x15
@@ -19,11 +21,19 @@ class Game:
 
         self.rover = Rover(Point(randint(0, Game.SIZE-1), randint(0, Game.SIZE-1)))
 
-        self.rooms = [Room(Game.SIZE, True)] # acts as a stack to push(append), pop, and peak([-1]) rooms
+        self.steps = 0
+
+        self.broken = ["cabin", "cabin", "engine", "exhaust"]
+        self.PARTS = ["bagel", "cake", "lettuce", "gear", "screw"]
+
+        self.portals = PortalStack() # stack to push and pop from
         
-        self.current_room = self.rooms[-1] # current_room tracks the room the rover is in and displayed on the screen
+        self.current_room = Room(Game.SIZE, True) # current_room tracks the room the rover is in and displayed on the screen
 
         self.inventory = InventoryLL()
+
+        self.tasks = TasksCircularQ(4)
+        self.create_task()
 
     def start_game(self):
         self.gui.run()
@@ -56,46 +66,58 @@ class Game:
         """ Called by GUI when button clicked.
             If legal, moves rover. If the robot lands
             on a portal, it will teleport. """
+        if self.tasks.isempty() or self.tasks.peek() == "You died!":
+            return
         if self.rover.position.y == 0:
           print("Hit wall, cannot move up")
         else:
           self.rover.position.y -= 1
           new_location = self.current_room.get_location(self.rover.position)
           if isinstance(new_location, Portal): self.teleport(new_location)
+          self.handle_steps()
 
 
     def go_down(self):
         """ Called by GUI when button clicked.
             If legal, moves rover. If the robot lands
             on a portal, it will teleport. """
+        if self.tasks.isempty() or self.tasks.peek() == "You died!":
+            return
         if self.rover.position.y == Game.SIZE-1:
           print("Hit wall, cannot move down")
         else:
           self.rover.position.y += 1
           new_location = self.current_room.get_location(self.rover.position)
           if isinstance(new_location, Portal): self.teleport(new_location)
+          self.handle_steps()
 
     def go_left(self):
         """ Called by GUI when button clicked.
             If legal, moves rover. If the robot lands
             on a portal, it will teleport. """
+        if self.tasks.isempty() or self.tasks.peek() == "You died!":
+            return
         if self.rover.position.x == 0:
           print("Hit wall, cannot move left")
         else:
           self.rover.position.x -= 1
           new_location = self.current_room.get_location(self.rover.position)
           if isinstance(new_location, Portal): self.teleport(new_location)
+          self.handle_steps()
 
     def go_right(self):
         """ Called by GUI when button clicked.
             If legal, moves rover. If the robot lands
             on a portal, it will teleport. """
+        if self.tasks.isempty() or self.tasks.peek() == "You died!":
+            return
         if self.rover.position.x == Game.SIZE-1:
           print("Hit wall, cannot move right")
         else:
           self.rover.position.x += 1
           new_location = self.current_room.get_location(self.rover.position)
           if isinstance(new_location, Portal): self.teleport(new_location)
+          self.handle_steps()
 
     def teleport(self, portal):
       """ Called by game when rover stands on portal.
@@ -105,27 +127,28 @@ class Game:
       """
       #if old and have NO new, then create new and go to it
       if portal.current == "old" and portal.room_new is None:
+        self.portals.push(portal)
         portal.room_new = Room(Game.SIZE, False, portal)
-        self.rooms.append(portal.room_new)
-        self.current_room = self.rooms[-1]
+        self.current_room = portal.room_new
         portal.current = "new"
         
       #elif old and have new, then go to it
       elif portal.current == "old" and portal.room_new is not None:
-        self.rooms.append(portal.room_new)
-        self.current_room = self.rooms[-1]
+        self.portals.push(portal)
+        self.current_room = portal.room_new
         portal.current = "new"
 
       #elif new, then go back to old
       else:
-        self.rooms.pop()
-        self.current_room = self.rooms[-1]
+        old_portal = self.portals.pop()
+        self.current_room = portal.room_old
         portal.current = "old"
 
     def show_way_back(self):
         """ Called by GUI when button clicked.
             Flash the portal leading towards home. """
-        pass # Your code goes here
+        if not self.portals.is_empty():
+            self.portals.get_head().image = "portal-flashing.ppm"
 
     def get_inventory(self):
         """ Called by GUI when inventory updates.
@@ -147,13 +170,65 @@ class Game:
             self.inventory.add(str(item)) # adds to inventory
             self.current_room.set_location(roverPos, None) # removes from board/GUI
 
+    def handle_steps(self):
+        """ Called by step functions to determine if task is created
+        """
+        if self.current_room.alien.x == self.get_rover_location().x or self.current_room.alien.y == self.get_rover_location().y:
+            while not self.tasks.isempty():
+                self.tasks.dequeue()
+            self.tasks.enqueue("You died!")
+
+        self.steps += 1
+        if self.steps % 50 == 0:
+            self.create_task()
+    
+    def create_task(self):
+        """ Called initially and by handle_steps function to create a task
+        """
+        if len(self.broken) == 0:
+            print("Exhausted tasks")
+            return
+
+        task = {}
+
+        if len(self.broken) > 1:
+            task["fix"] = self.broken[randint(0,len(self.broken)-1)]
+        else:
+            task["fix"] = self.broken[0]
+        self.broken.remove(task["fix"])
+
+        parts = self.PARTS[:]
+        task["parts"] = {}
+        for i in range(3):
+            part_type = parts[randint(0, len(parts)-1)]
+            parts.remove(part_type)
+            task["parts"][part_type] = randint(2, 4)
+        self.tasks.enqueue(task)
+
     def get_current_task(self):
         """ Called by GUI when task updates.
             Returns top task (as a string).
 		'Fix the engine using 2 cake, 3 rugs' or
 		'You win!'
+
+        current_task dict strucutre...
+            {
+                "fix" : "engine",
+                "parts" : {
+                    "cake" : 2,
+                    "rugs" : 3
+                    }
+            }
  	  """
-        pass # Your code goes here
+        if self.tasks.isempty():
+            return "You win!"
+        current_task = self.tasks.peek()
+        if current_task == "You died!":
+            return "You died!"
+        strBuilder = "Fix the %s using " % current_task["fix"]
+        for part, amount in current_task["parts"].items(): # iterate sub-dict of quantity + part(s) needed
+            strBuilder += str(amount) + " " + part + ", "
+        return strBuilder[:-2]
 
     def perform_task(self):
         """ Called by the GUI when button clicked.
@@ -161,7 +236,25 @@ class Game:
             is on the relevant broken ship piece, then fixes
             ship piece and removes parts from inventory. If
             we run out of tasks, we win. """
-        pass # Your code goes here
+        current_task = self.tasks.peek()
+        current_space = self.current_room.get_location(self.get_rover_location())
+
+        if (not isinstance(current_space, ShipComponent)) or (str(current_space).lower() != current_task["fix"]+"broken"):
+            print("Not on proper Ship Component")
+            return
+        
+        current_inv = self.inventory.get_parts_dict()
+        for part, amount in current_task["parts"].items():
+            if (not part in current_inv.keys()) or (current_inv[part] < amount):
+                print("You do not have enough " + part)
+                return
+
+        current_space.image = current_task["fix"] + ".ppm"
+        
+        for part, amount in current_task["parts"].items():
+            self.inventory.remove(part, amount)
+
+        self.tasks.dequeue()
 
     # Put other methods here as needed.
 
@@ -178,6 +271,10 @@ class StaticItem:
 
   def __str__(self):
     return self.image.split(".")[0].capitalize() # gets section of image filename without ".ppm" then capitalizes
+
+class Alien(StaticItem):
+  def __init__(self, position, image):
+    super().__init__(position, image)
 
 class Portal(StaticItem):
   def __init__(self, position, image, init_room):
@@ -200,11 +297,11 @@ class ShipComponent(StaticItem):
 class Room:
   def __init__(self, size, first, portal_back=None):
     self.size = size
-    
+    self.alien = Point(-1, -1)
     # Use list comprehension to make a 2D array full of None
     self.board = [[None for x in range(size)] for x in range(size)]
     # Board can be indexed by [Point.y][Point.x] because it is [row, column]
-
+    
     if first:
       # Hardcoded ship components
       self.set_location(Point(6,6), ShipComponent(Point(6,6), "cabinbroken.ppm", "cabin", True))     # broken cabin @ 6,6
@@ -220,6 +317,11 @@ class Room:
     else:
       # Set the OG portal location to make sure it has a spot
       self.set_location(portal_back.position, portal_back)
+
+      self.alien = Point(randint(0, self.size-1), randint(0, self.size-1))
+      while self.get_location(self.alien) is not None:
+        self.alien = Point(randint(0, self.size-1), randint(0, self.size-1))
+      self.set_location(self.alien, Alien(self.alien, "alien.ppm"))
 
       # Random number of portals from 2 to 5
       numPortals = randint(2, 5)
